@@ -1,0 +1,10 @@
+{
+  "appTitle": "Uzhavan - Smart Agriculture",
+  "chatbotTitle": "AI Chatbot",
+  "forumTitle": "Forum",
+  "soilTitle": "Soil Data",
+  "chatbotPlaceholder": "Chatbot conversation will appear here.",
+  "forumPlaceholder": "Forum feature coming soon.",
+  "soilPlaceholder": "Soil sensor integration coming soon.",
+  "typeMessage": "Type your message..."
+} 
