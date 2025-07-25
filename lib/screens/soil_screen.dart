@@ -1,8 +1,45 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
 import '../utils/theme.dart';
 
-class SoilScreen extends StatelessWidget {
+class SoilScreen extends StatefulWidget {
   const SoilScreen({super.key});
+
+  @override
+  State<SoilScreen> createState() => _SoilScreenState();
+}
+
+class _SoilScreenState extends State<SoilScreen> {
+  double? temperature;
+  double? windSpeed;
+  List<double> hourlyWindSpeeds = [];
+
+  @override
+  void initState() {
+    super.initState();
+    fetchWeatherData();
+  }
+
+  Future<void> fetchWeatherData() async {
+    final url =
+        'https://api.open-meteo.com/v1/forecast?latitude=13.067439&longitude=80.237617&current=temperature_2m,wind_speed_10m&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m';
+
+    final response = await http.get(Uri.parse(url));
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      setState(() {
+        temperature = data['current']['temperature_2m']?.toDouble();
+        windSpeed = data['current']['wind_speed_10m']?.toDouble();
+        hourlyWindSpeeds = List<double>.from(
+          data['hourly']['wind_speed_10m'].take(6).map((w) => w.toDouble()),
+        );
+      });
+    } else {
+      print('Failed to load weather data');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -13,40 +50,47 @@ class SoilScreen extends StatelessWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Nutrient cards
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: _NutrientCard(title: 'Potassium', value: '0.8mg'),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _NutrientCard(title: 'Sodium', value: '1.8mg'),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _NutrientCard(title: 'Salts a', value: '2.8mg'),
-                ),
-              ],
+      body: temperature == null || windSpeed == null
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Nutrient cards
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: const [
+                      Expanded(
+                        child: _NutrientCard(
+                          title: 'Potassium',
+                          value: '0.8mg',
+                        ),
+                      ),
+                      SizedBox(width: 16),
+                      Expanded(
+                        child: _NutrientCard(title: 'Sodium', value: '1.8mg'),
+                      ),
+                      SizedBox(width: 16),
+                      Expanded(
+                        child: _NutrientCard(title: 'Salts a', value: '2.8mg'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  _WeatherCard(
+                    temperature: temperature!,
+                    windSpeed: windSpeed!,
+                    windSpeeds: hourlyWindSpeeds,
+                  ),
+                  const SizedBox(height: 24),
+                  const _DailyNudgeCard(),
+                  const SizedBox(height: 16),
+                  const _WannaTalkCard(),
+                  const SizedBox(height: 16), // Extra padding at bottom
+                ],
+              ),
             ),
-            const SizedBox(height: 24),
-            // Wind speed list
-            _WindSpeedCard(),
-            const SizedBox(height: 24),
-            // Daily Nudge
-            _DailyNudgeCard(),
-            const SizedBox(height: 16),
-            // Wanna Talk
-            _WannaTalkCard(),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -95,7 +139,17 @@ class _NutrientCard extends StatelessWidget {
   }
 }
 
-class _WindSpeedCard extends StatelessWidget {
+class _WeatherCard extends StatelessWidget {
+  final double temperature;
+  final double windSpeed;
+  final List<double> windSpeeds;
+
+  const _WeatherCard({
+    required this.temperature,
+    required this.windSpeed,
+    required this.windSpeeds,
+  });
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -105,12 +159,55 @@ class _WindSpeedCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppTheme.accentGreen, width: 2),
       ),
-      child: Column(children: List.generate(6, (index) => _WindSpeedRow())),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Current Temperature: ${temperature.toStringAsFixed(1)} °C',
+            style: TextStyle(
+              color: AppTheme.accentGreen,
+              fontFamily: 'Comic Sans MS',
+              fontWeight: FontWeight.w700,
+              fontSize: 20,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Current Wind Speed: ${windSpeed.toStringAsFixed(1)} km/h',
+            style: TextStyle(
+              color: AppTheme.accentGreen,
+              fontFamily: 'Comic Sans MS',
+              fontWeight: FontWeight.w700,
+              fontSize: 20,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Next 6 hours Wind Speed:',
+            style: TextStyle(
+              color: AppTheme.accentGreen,
+              fontFamily: 'Comic Sans MS',
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Column(
+            children: List.generate(
+              windSpeeds.length,
+              (index) => _WindSpeedRow(value: windSpeeds[index]),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
 class _WindSpeedRow extends StatelessWidget {
+  final double value;
+  const _WindSpeedRow({required this.value});
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -119,9 +216,9 @@ class _WindSpeedRow extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Row(
-            children: [
-              const Icon(Icons.eco, color: AppTheme.accentGreen, size: 20),
-              const SizedBox(width: 6),
+            children: const [
+              Icon(Icons.eco, color: AppTheme.accentGreen, size: 20),
+              SizedBox(width: 6),
               Text(
                 'Wind Speed',
                 style: TextStyle(
@@ -134,7 +231,7 @@ class _WindSpeedRow extends StatelessWidget {
             ],
           ),
           Text(
-            '0.4km/hr',
+            '${value.toStringAsFixed(1)} km/h',
             style: TextStyle(
               color: AppTheme.accentGreen,
               fontFamily: 'Comic Sans MS',
@@ -149,6 +246,8 @@ class _WindSpeedRow extends StatelessWidget {
 }
 
 class _DailyNudgeCard extends StatelessWidget {
+  const _DailyNudgeCard();
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -157,7 +256,6 @@ class _DailyNudgeCard extends StatelessWidget {
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppTheme.accentGreen, width: 2),
-        // Add a pattern background if desired
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -188,6 +286,8 @@ class _DailyNudgeCard extends StatelessWidget {
 }
 
 class _WannaTalkCard extends StatelessWidget {
+  const _WannaTalkCard();
+
   @override
   Widget build(BuildContext context) {
     return Container(
