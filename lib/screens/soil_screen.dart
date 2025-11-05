@@ -23,7 +23,7 @@ class _SoilScreenState extends State<SoilScreen> {
   String? dailyNudge;
   bool isLoadingNudge = false;
   List<double> hourlyWindSpeeds = [];
-  
+
   // Mineral values (these would typically come from soil sensors)
   final Map<String, String> mineralValues = {
     'Potassium': '0.8mg',
@@ -53,7 +53,7 @@ class _SoilScreenState extends State<SoilScreen> {
         condition = data['current']['condition']['text'];
         hourlyWindSpeeds = [windSpeed ?? 0];
       });
-      
+
       // Generate daily nudge after weather data is loaded
       await _generateDailyNudge();
     } else {
@@ -61,9 +61,12 @@ class _SoilScreenState extends State<SoilScreen> {
     }
   }
 
-  Future<void> _generateDailyNudge() async {
-    if (temperature == null || windSpeed == null || humidity == null || 
-        uvIndex == null || condition == null) {
+  Future<void> _generateDailyNudge({bool forceRefresh = false}) async {
+    if (temperature == null ||
+        windSpeed == null ||
+        humidity == null ||
+        uvIndex == null ||
+        condition == null) {
       return;
     }
 
@@ -79,6 +82,7 @@ class _SoilScreenState extends State<SoilScreen> {
         uvIndex: uvIndex!,
         weatherCondition: condition!,
         mineralValues: mineralValues,
+        forceRefresh: forceRefresh,
       );
 
       setState(() {
@@ -88,7 +92,8 @@ class _SoilScreenState extends State<SoilScreen> {
     } catch (e) {
       print('Error generating daily nudge: $e');
       setState(() {
-        dailyNudge = 'Monitor your crops regularly and adjust watering based on weather conditions.';
+        dailyNudge =
+            'Monitor your crops regularly and adjust watering based on weather conditions.';
         isLoadingNudge = false;
       });
     }
@@ -126,7 +131,7 @@ class _SoilScreenState extends State<SoilScreen> {
                       ),
                       SizedBox(width: 16),
                       Expanded(
-                        child: _NutrientCard(title: 'Salts a', value: '2.8mg'),
+                        child: _NutrientCard(title: 'Salts', value: '2.8mg'),
                       ),
                     ],
                   ),
@@ -144,6 +149,7 @@ class _SoilScreenState extends State<SoilScreen> {
                   _DailyNudgeCard(
                     nudge: dailyNudge,
                     isLoading: isLoadingNudge,
+                    onRefresh: () => _generateDailyNudge(forceRefresh: true),
                   ),
                   const SizedBox(height: 16),
                   const _WannaTalkCard(),
@@ -349,10 +355,12 @@ class _WindSpeedRow extends StatelessWidget {
 class _DailyNudgeCard extends StatelessWidget {
   final String? nudge;
   final bool isLoading;
-  
+  final VoidCallback onRefresh;
+
   const _DailyNudgeCard({
     required this.nudge,
     required this.isLoading,
+    required this.onRefresh,
   });
 
   @override
@@ -367,14 +375,24 @@ class _DailyNudgeCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Daily Nudge',
-            style: TextStyle(
-              color: AppTheme.accentGreen,
-              fontFamily: 'Comic Sans MS',
-              fontWeight: FontWeight.bold,
-              fontSize: 22,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Daily Nudge',
+                style: TextStyle(
+                  color: AppTheme.accentGreen,
+                  fontFamily: 'Comic Sans MS',
+                  fontWeight: FontWeight.bold,
+                  fontSize: 22,
+                ),
+              ),
+              IconButton(
+                icon: Icon(Icons.refresh, color: AppTheme.accentGreen),
+                onPressed: isLoading ? null : onRefresh,
+                tooltip: 'Regenerate nudge',
+              ),
+            ],
           ),
           const SizedBox(height: 8),
           if (isLoading)
@@ -385,7 +403,9 @@ class _DailyNudgeCard extends StatelessWidget {
                   height: 16,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(AppTheme.accentGreen),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      AppTheme.accentGreen,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -402,7 +422,8 @@ class _DailyNudgeCard extends StatelessWidget {
             )
           else
             Text(
-              nudge ?? 'Monitor your crops regularly and adjust watering based on weather conditions.',
+              nudge ??
+                  'Monitor your crops regularly and adjust watering based on weather conditions.',
               style: TextStyle(
                 color: AppTheme.accentGreen,
                 fontFamily: 'Comic Sans MS',

@@ -13,17 +13,18 @@ class DailyNudgeService {
     required double uvIndex,
     required String weatherCondition,
     required Map<String, String> mineralValues,
+    bool forceRefresh = false,
   }) async {
     try {
       final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-      
+
       // Check if nudge already exists for today
       final docSnapshot = await _firestore
           .collection(_collection)
           .doc(today)
           .get();
 
-      if (docSnapshot.exists) {
+      if (docSnapshot.exists && !forceRefresh) {
         // Return existing nudge
         final data = docSnapshot.data() as Map<String, dynamic>;
         return data['nudge'] ?? _getDefaultNudge();

@@ -2,8 +2,10 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class GeminiApiService {
-  static const String _apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
-  static const String _apiKey = 'YOUR_GEMINI_API_KEY'; // Replace with your actual API key
+  static const String _apiUrl =
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+  static const String _apiKey =
+      'AIzaSyCbHOuLskezYas1foWQM6til2fc1Dj1ruo'; // Replace with your actual API key
 
   static Future<String> generateDailyNudge({
     required double temperature,
@@ -33,18 +35,17 @@ class GeminiApiService {
           'contents': [
             {
               'parts': [
-                {
-                  'text': prompt,
-                }
-              ]
-            }
+                {'text': prompt},
+              ],
+            },
           ],
         }),
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return data['candidates'][0]['content']['parts'][0]['text'] ?? 'No nudge generated';
+        return data['candidates'][0]['content']['parts'][0]['text'] ??
+            'No nudge generated';
       } else {
         print('Gemini API error: ${response.statusCode} - ${response.body}');
         return _getDefaultNudge();
@@ -77,6 +78,8 @@ Soil Mineral Data:
 ${mineralValues.entries.map((e) => '- ${e.key}: ${e.value}').join('\n')}
 
 Provide practical, actionable advice for today's farming activities based on these conditions. Focus on plant care, watering, soil management, or protection measures. Keep it simple and farmer-friendly.
+
+ALL IN SHORT SUCCINCT TAMIL TEXT ONLY. NO ENGLISH
 ''';
   }
 
