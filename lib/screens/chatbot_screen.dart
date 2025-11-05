@@ -50,9 +50,8 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
   }
 
   Future<String> _getClaudeResponse(String userMessage) async {
-    // SOLUTION 1: Use your own backend server
-    // Replace with your backend server URL
-    const backendUrl = 'http://localhost:3000/api/chat';
+    // Use deployed backend server
+    const backendUrl = 'https://agri.justinbenito.com/api/chat';
 
     try {
       final response = await http.post(
