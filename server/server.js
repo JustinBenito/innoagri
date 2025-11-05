@@ -11,63 +11,76 @@ app.use(cors()); // Enable CORS for all routes
 app.use(express.json());
 
 // Store your API key in environment variables
-const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY; // Set this in your .env file
-const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY; // Set this in your .env file
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`;
 
 // Chat endpoint
 app.post('/api/chat', async (req, res) => {
   try {
     const { message, language } = req.body;
 
+    console.log('Received message:', message);
+    console.log('API Key present:', !!GEMINI_API_KEY);
+    console.log('API URL:', GEMINI_API_URL);
+
     if (!message) {
       return res.status(400).json({ error: 'Message is required' });
     }
 
-    // Prepare the request to Claude API
-    const claudeRequest = {
-      model: 'claude-3-haiku-20240307',
-      max_tokens: 512,
-      messages: [
+    // Prepare the request to Gemini API
+    const geminiRequest = {
+      contents: [
         {
-          role: 'user',
-          content: `${message}\n\nPlease respond only in Tamil, not in English.`
+          parts: [
+            {
+              text: `${message}\n\nPlease respond only in Tamil, not in English.`
+            }
+          ]
         }
       ]
     };
 
-    // Make request to Claude API
-    const response = await axios.post(CLAUDE_API_URL, claudeRequest, {
+    console.log('Sending request to Gemini API...');
+
+    // Make request to Gemini API
+    const response = await axios.post(GEMINI_API_URL, geminiRequest, {
       headers: {
-        'x-api-key': CLAUDE_API_KEY,
-        'anthropic-version': '2023-06-01',
+        'x-goog-api-key': GEMINI_API_KEY,
         'content-type': 'application/json'
       }
     });
 
+    console.log('Gemini API Response received successfully');
+
     // Extract response text
-    const claudeResponse = response.data.content[0].text || 
+    const geminiResponse = response.data.candidates[0].content.parts[0].text ||
                           'பிழை ஏற்பட்டது. மீண்டும் முயற்சிக்கவும்.';
 
-    res.json({ response: claudeResponse });
+    res.json({ response: geminiResponse });
 
   } catch (error) {
-    console.error('Error calling Claude API:', error.message);
-    
+    console.error('Error calling Gemini API:', error.message);
+    console.error('Full error:', error);
+
     // Handle different types of errors
     if (error.response) {
       // API returned an error status
       const status = error.response.status;
       const message = error.response.data?.error?.message || 'API Error';
-      
-      res.status(status).json({ 
-        error: `Claude API Error: ${message}`,
-        response: 'பிழை ஏற்பட்டது. மீண்டும் முயற்சிக்கவும்.' 
+
+      console.error('API Error Status:', status);
+      console.error('API Error Response:', JSON.stringify(error.response.data, null, 2));
+
+      res.status(status).json({
+        error: `Gemini API Error: ${message}`,
+        response: 'பிழை ஏற்பட்டது. மீண்டும் முயற்சிக்கவும்.'
       });
     } else {
       // Network or other error
-      res.status(500).json({ 
+      console.error('Network/Server Error:', error);
+      res.status(500).json({
         error: 'Server Error',
-        response: 'பிழை ஏற்பட்டது. மீண்டும் முயற்சிக்கவும்.' 
+        response: 'பிழை ஏற்பட்டது. மீண்டும் முயற்சிக்கவும்.'
       });
     }
   }

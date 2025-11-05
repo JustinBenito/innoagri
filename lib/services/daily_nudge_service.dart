@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
-import 'claude_api_service.dart';
+import 'gemini_api_service.dart';
 
 class DailyNudgeService {
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -28,8 +28,8 @@ class DailyNudgeService {
         final data = docSnapshot.data() as Map<String, dynamic>;
         return data['nudge'] ?? _getDefaultNudge();
       } else {
-        // Generate new nudge using Claude API
-        final nudge = await ClaudeApiService.generateDailyNudge(
+        // Generate new nudge using Gemini API
+        final nudge = await GeminiApiService.generateDailyNudge(
           temperature: temperature,
           windSpeed: windSpeed,
           humidity: humidity,

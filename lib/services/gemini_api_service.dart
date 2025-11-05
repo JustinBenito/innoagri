@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-class ClaudeApiService {
-  static const String _apiUrl = 'https://api.anthropic.com/v1/messages';
-  static const String _apiKey = 'YOUR_CLAUDE_API_KEY'; // Replace with your actual API key
-  
+class GeminiApiService {
+  static const String _apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
+  static const String _apiKey = 'YOUR_GEMINI_API_KEY'; // Replace with your actual API key
+
   static Future<String> generateDailyNudge({
     required double temperature,
     required double windSpeed,
@@ -27,16 +27,16 @@ class ClaudeApiService {
         Uri.parse(_apiUrl),
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': _apiKey,
-          'anthropic-version': '2023-06-01',
+          'x-goog-api-key': _apiKey,
         },
         body: jsonEncode({
-          'model': 'claude-3-sonnet-20240229',
-          'max_tokens': 200,
-          'messages': [
+          'contents': [
             {
-              'role': 'user',
-              'content': prompt,
+              'parts': [
+                {
+                  'text': prompt,
+                }
+              ]
             }
           ],
         }),
@@ -44,13 +44,13 @@ class ClaudeApiService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return data['content'][0]['text'] ?? 'No nudge generated';
+        return data['candidates'][0]['content']['parts'][0]['text'] ?? 'No nudge generated';
       } else {
-        print('Claude API error: ${response.statusCode} - ${response.body}');
+        print('Gemini API error: ${response.statusCode} - ${response.body}');
         return _getDefaultNudge();
       }
     } catch (e) {
-      print('Error calling Claude API: $e');
+      print('Error calling Gemini API: $e');
       return _getDefaultNudge();
     }
   }
