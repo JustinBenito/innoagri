@@ -86,6 +86,20 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
+// ThingsBoard proxy endpoint
+app.get('/api/thingsboard/telemetry', async (req, res) => {
+  try {
+    const TB_TOKEN = 'BnkxMcfb7ufqKuENleCb';
+    const response = await axios.get(
+      `https://thingsboard.cloud/api/v1/${TB_TOKEN}/telemetry`
+    );
+    res.json(response.data);
+  } catch (error) {
+    console.error('ThingsBoard error:', error.message);
+    res.status(500).json({ error: 'Failed to fetch sensor data' });
+  }
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'Server is running' });

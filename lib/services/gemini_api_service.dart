@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 class GeminiApiService {
   static const String _apiUrl =
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
-  static const String _apiKey = 'YOUR_KEY'; // Replace with your actual API key
+  static const String _apiKey = '';
 
   static Future<String> generateDailyNudge({
     required double temperature,
