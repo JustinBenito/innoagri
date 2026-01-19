@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../l10n/app_localizations.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import '../services/tts_service.dart';
+import '../providers/language_provider.dart';
 
-class ChatbotScreen extends StatefulWidget {
+class ChatbotScreen extends ConsumerStatefulWidget {
   const ChatbotScreen({super.key});
 
   @override
-  State<ChatbotScreen> createState() => _ChatbotScreenState();
+  ConsumerState<ChatbotScreen> createState() => _ChatbotScreenState();
 }
 
-class _ChatbotScreenState extends State<ChatbotScreen> {
+class _ChatbotScreenState extends ConsumerState<ChatbotScreen> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final List<_ChatMessage> _messages = [];
@@ -50,28 +55,60 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
   }
 
   Future<String> _getClaudeResponse(String userMessage) async {
-    // Use deployed backend server
-    const backendUrl = 'https://agri.justinbenito.com/api/chat';
+    final apiKey = dotenv.env['GEMINI_API_KEY'];
+
+    if (apiKey == null || apiKey.isEmpty) {
+      return 'API key not configured. Please add GEMINI_API_KEY to .env file.';
+    }
+
+    final locale = ref.read(languageProvider);
+    final isTamil = locale.languageCode == 'ta';
+
+    // Prepare language-specific prompt
+    final languageInstruction = isTamil
+        ? '\n\nPlease respond only in Tamil, not in English.'
+        : '\n\nPlease respond in English.';
+
+    const geminiApiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent';
 
     try {
       final response = await http.post(
-        Uri.parse(backendUrl),
-        headers: {'Content-Type': 'application/json'},
+        Uri.parse(geminiApiUrl),
+        headers: {
+          'x-goog-api-key': apiKey,
+          'Content-Type': 'application/json',
+        },
         body: jsonEncode({
-          'message': userMessage,
-          'language': 'tamil', // Specify Tamil language
+          'contents': [
+            {
+              'parts': [
+                {
+                  'text': '$userMessage$languageInstruction',
+                }
+              ]
+            }
+          ]
         }),
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return data['response'] ?? 'பிழை ஏற்பட்டது. மீண்டும் முயற்சிக்கவும்.';
+        final generatedText = data['candidates']?[0]?['content']?['parts']?[0]?['text'];
+
+        if (generatedText != null) {
+          return generatedText;
+        } else {
+          return isTamil
+              ? 'பிழை ஏற்பட்டது. மீண்டும் முயற்சிக்கவும்.'
+              : 'Error occurred. Please try again.';
+        }
       } else {
-        throw Exception('Server error: ${response.statusCode}');
+        throw Exception('API error: ${response.statusCode}');
       }
     } catch (e) {
-      // Fallback to mock response for demonstration
-      await Future.delayed(const Duration(seconds: 1)); // Simulate API delay
+      print('Gemini API error: $e');
+      // Fallback to mock response
+      await Future.delayed(const Duration(seconds: 1));
       return _getMockTamilResponse(userMessage);
     }
   }
@@ -102,9 +139,12 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final locale = ref.watch(languageProvider);
+    final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('AI Chatbot'),
+        title: Text(l10n.chatbotTitle),
         backgroundColor: Theme.of(context).colorScheme.primaryContainer,
       ),
       body: Column(
@@ -145,14 +185,36 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
                         ),
                       ],
                     ),
-                    child: Text(
-                      msg.text,
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: msg.isUser
-                            ? Theme.of(context).colorScheme.onPrimary
-                            : Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            msg.text,
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: msg.isUser
+                                  ? Theme.of(context).colorScheme.onPrimary
+                                  : Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        InkWell(
+                          onTap: () {
+                            // Auto-detect language from text
+                            TtsService.speakAuto(msg.text);
+                          },
+                          child: Icon(
+                            Icons.volume_up,
+                            size: 20,
+                            color: msg.isUser
+                                ? Theme.of(context).colorScheme.onPrimary.withOpacity(0.8)
+                                : Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.8),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 );
@@ -172,7 +234,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    'பதிலை எழுதுகிறேன்...',
+                    l10n.typingResponse,
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
@@ -198,7 +260,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
                   child: TextField(
                     controller: _controller,
                     decoration: InputDecoration(
-                      hintText: 'உங்கள் செய்தியை இங்கே தட்டச்சு செய்யுங்கள்...',
+                      hintText: l10n.typeMessage,
                       hintStyle: TextStyle(
                         color: Theme.of(
                           context,
@@ -245,6 +307,7 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
   void dispose() {
     _controller.dispose();
     _scrollController.dispose();
+    TtsService.stop();
     super.dispose();
   }
 }

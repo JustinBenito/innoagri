@@ -1,23 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../l10n/app_localizations.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:async';
 import 'package:intl/intl.dart';
 import 'dart:ui';
 
 import '../utils/theme.dart';
 import '../services/daily_nudge_service.dart';
-import '../services/thingsboard_service.dart';
+import '../services/blynk_service.dart';
+import '../services/tts_service.dart';
+import '../providers/language_provider.dart';
 import 'chatbot_screen.dart';
 import 'plant_disease_screen.dart';
 
-class SoilScreen extends StatefulWidget {
+class SoilScreen extends ConsumerStatefulWidget {
   const SoilScreen({super.key});
 
   @override
-  State<SoilScreen> createState() => _SoilScreenState();
+  ConsumerState<SoilScreen> createState() => _SoilScreenState();
 }
 
-class _SoilScreenState extends State<SoilScreen> {
+class _SoilScreenState extends ConsumerState<SoilScreen> {
   double? temperature;
   double? windSpeed;
   double? humidity;
@@ -28,42 +33,58 @@ class _SoilScreenState extends State<SoilScreen> {
   String? dailyNudge;
   bool isLoadingNudge = false;
 
-  // Sensor data from ThingsBoard
-  double? soilPh;
+  // Sensor data from Blynk
+  double? sensorTemperature;
+  double? sensorHumidity;
   double? soilMoisture;
+  double? soilPh;
   Map<String, String> mineralValues = {
     'Potassium': '0.8mg',
     'Sodium': '1.8mg',
     'Salts': '2.8mg',
   };
 
+  Timer? _sensorDataTimer;
+
   @override
   void initState() {
     super.initState();
     fetchWeatherData();
-    fetchThingsBoardData();
+    fetchBlynkData();
+    // Poll Blynk data every 5 seconds
+    _sensorDataTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      fetchBlynkData();
+    });
   }
 
-  Future<void> fetchThingsBoardData() async {
+  @override
+  void dispose() {
+    _sensorDataTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> fetchBlynkData() async {
     try {
-      final data = await ThingsBoardService.getLatestTelemetry();
+      final data = await BlynkService.getSensorData();
       if (data != null) {
         setState(() {
-          soilPh = data['pH']?[0]?['value']?.toDouble();
-          soilMoisture = data['soilMoisture']?[0]?['value']?.toDouble();
+          sensorTemperature = data.temperature;
+          sensorHumidity = data.humidity;
+          soilMoisture = data.soilMoisture;
+          soilPh = data.pH;
 
           // Estimate minerals from pH and moisture
           if (soilPh != null && soilMoisture != null) {
-            mineralValues = ThingsBoardService.estimateMinerals(
+            mineralValues = BlynkService.estimateMinerals(
               pH: soilPh!,
               soilMoisture: soilMoisture!,
             );
           }
         });
-        print('ThingsBoard data: pH=$soilPh, Moisture=$soilMoisture');
+        print('Blynk data: Temp=$sensorTemperature, Humidity=$sensorHumidity, Moisture=$soilMoisture, pH=$soilPh');
       }
     } catch (e) {
-      print('Error fetching ThingsBoard data: $e');
+      print('Error fetching Blynk data: $e');
     }
   }
 
@@ -132,8 +153,32 @@ class _SoilScreenState extends State<SoilScreen> {
     return DateFormat('EEEE').format(DateTime.now());
   }
 
+  // Helper method to determine sensor status
+  SensorStatus _getSensorStatus(String sensorName, double? value) {
+    if (value == null) return SensorStatus.normal;
+
+    switch (sensorName.toLowerCase()) {
+      case 'moisture':
+        if (value < 30) return SensorStatus.critical;
+        if (value < 50) return SensorStatus.warning;
+        return SensorStatus.normal;
+      case 'ph':
+        if (value < 5.5 || value > 7.5) return SensorStatus.critical;
+        if (value < 6.0 || value > 7.0) return SensorStatus.warning;
+        return SensorStatus.normal;
+      case 'humidity':
+        if (value < 40) return SensorStatus.critical;
+        if (value < 50) return SensorStatus.warning;
+        return SensorStatus.normal;
+      default:
+        return SensorStatus.normal;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: temperature == null
@@ -147,6 +192,7 @@ class _SoilScreenState extends State<SoilScreen> {
                     temperature: temperature!,
                     day: getCurrentDay(),
                     location: location,
+                    farConnectText: l10n.farConnect,
                   ),
 
                   const SizedBox(height: 24),
@@ -157,9 +203,9 @@ class _SoilScreenState extends State<SoilScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Weather Conditions',
-                          style: TextStyle(
+                        Text(
+                          l10n.weatherConditions,
+                          style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                             color: Colors.black,
@@ -167,22 +213,22 @@ class _SoilScreenState extends State<SoilScreen> {
                         ),
                         const SizedBox(height: 12),
                         _WeatherRow(
-                          name: 'Temperature',
+                          name: l10n.temperature,
                           value: '${temperature!.toStringAsFixed(1)}°C',
                         ),
                         const SizedBox(height: 8),
                         _WeatherRow(
-                          name: 'Wind Speed',
+                          name: l10n.windSpeed,
                           value: '${windSpeed!.toStringAsFixed(1)} km/h',
                         ),
                         const SizedBox(height: 8),
                         _WeatherRow(
-                          name: 'Humidity',
+                          name: l10n.humidity,
                           value: '${humidity!.toStringAsFixed(0)}%',
                         ),
                         const SizedBox(height: 8),
                         _WeatherRow(
-                          name: 'UV Index',
+                          name: l10n.uvIndex,
                           value: '${uvIndex!.toStringAsFixed(1)}',
                         ),
                       ],
@@ -197,9 +243,9 @@ class _SoilScreenState extends State<SoilScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'FarConnect',
-                          style: TextStyle(
+                        Text(
+                          l10n.farConnect,
+                          style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                             color: Colors.black,
@@ -207,31 +253,35 @@ class _SoilScreenState extends State<SoilScreen> {
                         ),
                         const SizedBox(height: 12),
                         _SensorRow(
-                          name: 'Temperature',
-                          value: soilPh != null
-                              ? '${temperature!.toStringAsFixed(1)}°C'
+                          name: l10n.temperature,
+                          value: sensorTemperature != null
+                              ? '${sensorTemperature!.toStringAsFixed(1)}°C'
                               : 'Loading...',
+                          status: SensorStatus.normal,
                         ),
                         const SizedBox(height: 8),
                         _SensorRow(
-                          name: 'Moisture',
+                          name: l10n.humidity,
+                          value: sensorHumidity != null
+                              ? '${sensorHumidity!.toStringAsFixed(0)}%'
+                              : 'Loading...',
+                          status: _getSensorStatus('humidity', sensorHumidity),
+                        ),
+                        const SizedBox(height: 8),
+                        _SensorRow(
+                          name: l10n.soilMoisture,
                           value: soilMoisture != null
                               ? '${soilMoisture!.toStringAsFixed(1)}%'
                               : 'Loading...',
+                          status: _getSensorStatus('moisture', soilMoisture),
                         ),
                         const SizedBox(height: 8),
                         _SensorRow(
-                          name: 'pH',
+                          name: l10n.pH,
                           value: soilPh != null
                               ? soilPh!.toStringAsFixed(2)
                               : 'Loading...',
-                        ),
-                        const SizedBox(height: 8),
-                        _SensorRow(
-                          name: 'Humidity',
-                          value: humidity != null
-                              ? '${humidity!.toStringAsFixed(0)}%'
-                              : 'Loading...',
+                          status: _getSensorStatus('ph', soilPh),
                         ),
                       ],
                     ),
@@ -246,15 +296,22 @@ class _SoilScreenState extends State<SoilScreen> {
                       nudge: dailyNudge,
                       isLoading: isLoadingNudge,
                       onRefresh: () => _generateDailyNudge(forceRefresh: true),
+                      dailyNudgeText: l10n.dailyNudge,
+                      generatingAdviceText: l10n.generatingAdvice,
+                      defaultNudgeText: l10n.defaultNudge,
                     ),
                   ),
 
                   const SizedBox(height: 16),
 
                   // Wanna Talk Section
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16.0),
-                    child: _WannaTalkCard(),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: _WannaTalkCard(
+                      wannaTalkText: l10n.wannaTalk,
+                      wannaTalkDescText: l10n.wannaTalkDesc,
+                      startChattingText: l10n.startChatting,
+                    ),
                   ),
 
                   const SizedBox(height: 16),
@@ -262,7 +319,11 @@ class _SoilScreenState extends State<SoilScreen> {
                   // Plant Disease Detection Section
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                    child: _PlantDiseaseCard(),
+                    child: _PlantDiseaseCard(
+                      identifyPlantDiseaseText: l10n.identifyPlantDisease,
+                      identifyPlantDiseaseDescText: l10n.identifyPlantDiseaseDesc,
+                      scanPlantText: l10n.scanPlant,
+                    ),
                   ),
 
                   const SizedBox(height: 24),
@@ -278,11 +339,13 @@ class _FarConnectHeader extends StatelessWidget {
   final double temperature;
   final String day;
   final String location;
+  final String farConnectText;
 
   const _FarConnectHeader({
     required this.temperature,
     required this.day,
     required this.location,
+    required this.farConnectText,
   });
 
   @override
@@ -296,10 +359,10 @@ class _FarConnectHeader extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 12),
               decoration: const BoxDecoration(color: Color(0xFF1B5E20)),
-              child: const Center(
+              child: Center(
                 child: Text(
-                  'FarConnect',
-                  style: TextStyle(
+                  farConnectText,
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 24,
                     fontWeight: FontWeight.w400,
@@ -426,21 +489,41 @@ class _WeatherRow extends StatelessWidget {
   }
 }
 
+enum SensorStatus { normal, warning, critical }
+
 class _SensorRow extends StatelessWidget {
   final String name;
   final String value;
+  final SensorStatus status;
 
-  const _SensorRow({required this.name, required this.value});
+  const _SensorRow({
+    required this.name,
+    required this.value,
+    this.status = SensorStatus.normal,
+  });
+
+  Color _getStatusColor() {
+    switch (status) {
+      case SensorStatus.critical:
+        return Colors.red;
+      case SensorStatus.warning:
+        return Colors.orange;
+      case SensorStatus.normal:
+        return Colors.green;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final statusColor = _getStatusColor();
+
     return Row(
       children: [
         Container(
           width: 12,
           height: 12,
-          decoration: const BoxDecoration(
-            color: Colors.green,
+          decoration: BoxDecoration(
+            color: statusColor,
             shape: BoxShape.circle,
           ),
         ),
@@ -451,13 +534,28 @@ class _SensorRow extends StatelessWidget {
             style: const TextStyle(fontSize: 16, color: Colors.black87),
           ),
         ),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 16,
-            color: Colors.green,
-            fontWeight: FontWeight.w600,
-          ),
+        Row(
+          children: [
+            if (status != SensorStatus.normal)
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: Icon(
+                  status == SensorStatus.critical
+                      ? Icons.warning
+                      : Icons.warning_amber,
+                  size: 16,
+                  color: statusColor,
+                ),
+              ),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 16,
+                color: statusColor,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -468,11 +566,17 @@ class _DailyNudgeCard extends StatelessWidget {
   final String? nudge;
   final bool isLoading;
   final VoidCallback onRefresh;
+  final String dailyNudgeText;
+  final String generatingAdviceText;
+  final String defaultNudgeText;
 
   const _DailyNudgeCard({
     required this.nudge,
     required this.isLoading,
     required this.onRefresh,
+    required this.dailyNudgeText,
+    required this.generatingAdviceText,
+    required this.defaultNudgeText,
   });
 
   @override
@@ -491,7 +595,7 @@ class _DailyNudgeCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Daily Nudge',
+                dailyNudgeText,
                 style: TextStyle(
                   color: AppTheme.accentGreen,
                   fontFamily: 'Comic Sans MS',
@@ -522,7 +626,7 @@ class _DailyNudgeCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  'Generating personalized advice...',
+                  generatingAdviceText,
                   style: TextStyle(
                     color: AppTheme.accentGreen,
                     fontFamily: 'Comic Sans MS',
@@ -533,15 +637,34 @@ class _DailyNudgeCard extends StatelessWidget {
               ],
             )
           else
-            Text(
-              nudge ??
-                  'Monitor your crops regularly and adjust watering based on weather conditions.',
-              style: TextStyle(
-                color: AppTheme.accentGreen,
-                fontFamily: 'Comic Sans MS',
-                fontWeight: FontWeight.w400,
-                fontSize: 15,
-              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    nudge ?? defaultNudgeText,
+                    style: TextStyle(
+                      color: AppTheme.accentGreen,
+                      fontFamily: 'Comic Sans MS',
+                      fontWeight: FontWeight.w400,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                InkWell(
+                  onTap: () {
+                    final textToSpeak = nudge ?? defaultNudgeText;
+                    // Auto-detect language from text
+                    TtsService.speakAuto(textToSpeak);
+                  },
+                  child: Icon(
+                    Icons.volume_up,
+                    size: 20,
+                    color: AppTheme.accentGreen,
+                  ),
+                ),
+              ],
             ),
         ],
       ),
@@ -550,7 +673,15 @@ class _DailyNudgeCard extends StatelessWidget {
 }
 
 class _WannaTalkCard extends StatelessWidget {
-  const _WannaTalkCard();
+  final String wannaTalkText;
+  final String wannaTalkDescText;
+  final String startChattingText;
+
+  const _WannaTalkCard({
+    required this.wannaTalkText,
+    required this.wannaTalkDescText,
+    required this.startChattingText,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -565,8 +696,8 @@ class _WannaTalkCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Wanna Talk ?',
-            style: TextStyle(
+            wannaTalkText,
+            style: const TextStyle(
               color: Colors.white,
               fontFamily: 'Comic Sans MS',
               fontWeight: FontWeight.bold,
@@ -575,8 +706,8 @@ class _WannaTalkCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Talk to our Uzhavan Chatbot for assistance on your crops and also in farming in general.',
-            style: TextStyle(
+            wannaTalkDescText,
+            style: const TextStyle(
               color: Colors.white,
               fontFamily: 'Comic Sans MS',
               fontWeight: FontWeight.w400,
@@ -614,7 +745,7 @@ class _WannaTalkCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'Start Chatting',
+                    startChattingText,
                     style: TextStyle(
                       fontFamily: 'Comic Sans MS',
                       fontWeight: FontWeight.w600,
@@ -633,7 +764,15 @@ class _WannaTalkCard extends StatelessWidget {
 }
 
 class _PlantDiseaseCard extends StatelessWidget {
-  const _PlantDiseaseCard();
+  final String identifyPlantDiseaseText;
+  final String identifyPlantDiseaseDescText;
+  final String scanPlantText;
+
+  const _PlantDiseaseCard({
+    required this.identifyPlantDiseaseText,
+    required this.identifyPlantDiseaseDescText,
+    required this.scanPlantText,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -648,7 +787,7 @@ class _PlantDiseaseCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Identify Plant Disease',
+            identifyPlantDiseaseText,
             style: TextStyle(
               color: AppTheme.accentGreen,
               fontFamily: 'Comic Sans MS',
@@ -658,7 +797,7 @@ class _PlantDiseaseCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Upload or take a photo of your plant to detect diseases and get treatment recommendations.',
+            identifyPlantDiseaseDescText,
             style: TextStyle(
               color: AppTheme.accentGreen,
               fontFamily: 'Comic Sans MS',
@@ -690,11 +829,11 @@ class _PlantDiseaseCard extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.camera_alt, size: 20, color: Colors.white),
+                  const Icon(Icons.camera_alt, size: 20, color: Colors.white),
                   const SizedBox(width: 8),
                   Text(
-                    'Scan Plant',
-                    style: TextStyle(
+                    scanPlantText,
+                    style: const TextStyle(
                       fontFamily: 'Comic Sans MS',
                       fontWeight: FontWeight.w600,
                       fontSize: 16,

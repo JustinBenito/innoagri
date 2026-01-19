@@ -2,11 +2,19 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class GeminiVisionService {
   static const String _apiUrl =
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent';
-  static const String _apiKey = 'AIzaSyCbHOuLskezYas1foWQM6til2fc1Dj1ruo';
+
+  static String get _apiKey {
+    final key = dotenv.env['GEMINI_API_KEY'];
+    if (key == null || key.isEmpty) {
+      throw Exception('GEMINI_API_KEY not found in .env file');
+    }
+    return key;
+  }
 
   static Future<Map<String, dynamic>> detectPlantDiseaseFromXFile(XFile imageFile) async {
     try {

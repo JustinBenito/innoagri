@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/gemini_vision_service.dart';
+import '../services/tts_service.dart';
 import '../utils/theme.dart';
 
 class PlantDiseaseScreen extends StatefulWidget {
@@ -18,6 +19,12 @@ class _PlantDiseaseScreenState extends State<PlantDiseaseScreen> {
   bool _isAnalyzing = false;
   Map<String, dynamic>? _analysisResult;
   final ImagePicker _picker = ImagePicker();
+
+  @override
+  void dispose() {
+    TtsService.stop();
+    super.dispose();
+  }
 
   Future<void> _pickImage(ImageSource source) async {
     try {
@@ -336,13 +343,22 @@ class _PlantDiseaseScreenState extends State<PlantDiseaseScreen> {
               children: [
                 Icon(Icons.warning_amber, color: Colors.orange.shade700),
                 const SizedBox(width: 8),
-                Text(
-                  'Error',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.orange.shade700,
+                Expanded(
+                  child: Text(
+                    'Error',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.orange.shade700,
+                    ),
                   ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.volume_up, size: 20),
+                  color: Colors.orange.shade700,
+                  onPressed: () {
+                    TtsService.speakAuto(result['error']);
+                  },
                 ),
               ],
             ),
@@ -389,12 +405,25 @@ class _PlantDiseaseScreenState extends State<PlantDiseaseScreen> {
             const SizedBox(height: 12),
             _buildInfoRow('தீவிரம்', result['severity'] ?? 'தெரியவில்லை'),
             const SizedBox(height: 12),
-            const Text(
-              'விளக்கம்:',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'விளக்கம்:',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.volume_up, size: 20),
+                  color: Colors.red.shade700,
+                  onPressed: () {
+                    final description = result['description'] ?? 'விளக்கம் இல்லை';
+                    TtsService.speakAuto(description);
+                  },
+                ),
+              ],
             ),
             const SizedBox(height: 4),
             Text(
@@ -402,12 +431,25 @@ class _PlantDiseaseScreenState extends State<PlantDiseaseScreen> {
               style: const TextStyle(fontSize: 15, height: 1.5),
             ),
             const SizedBox(height: 12),
-            const Text(
-              'சிகிச்சை:',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'சிகிச்சை:',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.volume_up, size: 20),
+                  color: Colors.red.shade700,
+                  onPressed: () {
+                    final treatment = result['treatment'] ?? 'சிகிச்சை தகவல் இல்லை';
+                    TtsService.speakAuto(treatment);
+                  },
+                ),
+              ],
             ),
             const SizedBox(height: 4),
             Text(
@@ -442,6 +484,14 @@ class _PlantDiseaseScreenState extends State<PlantDiseaseScreen> {
                       color: Colors.green.shade700,
                     ),
                   ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.volume_up, size: 20),
+                  color: Colors.green.shade700,
+                  onPressed: () {
+                    final message = result['message'] ?? 'நோய் எதுவும் கண்டறியப்படவில்லை.';
+                    TtsService.speakAuto(message);
+                  },
                 ),
               ],
             ),
