@@ -63,8 +63,7 @@ class AppLocalizationsKn extends AppLocalizations {
   String get wannaTalk => 'Wanna Talk ?';
 
   @override
-  String get wannaTalkDesc =>
-      'Talk to our Uzhavan Chatbot for assistance on your crops and also in farming in general.';
+  String get wannaTalkDesc => 'Talk to our Uzhavan Chatbot for assistance on your crops and also in farming in general.';
 
   @override
   String get startChatting => 'Start Chatting';
@@ -73,8 +72,7 @@ class AppLocalizationsKn extends AppLocalizations {
   String get identifyPlantDisease => 'Identify Plant Disease';
 
   @override
-  String get identifyPlantDiseaseDesc =>
-      'Upload or take a photo of your plant to detect diseases and get treatment recommendations.';
+  String get identifyPlantDiseaseDesc => 'Upload or take a photo of your plant to detect diseases and get treatment recommendations.';
 
   @override
   String get scanPlant => 'Scan Plant';
@@ -86,6 +84,5 @@ class AppLocalizationsKn extends AppLocalizations {
   String get typingResponse => 'Typing response...';
 
   @override
-  String get defaultNudge =>
-      'Monitor your crops regularly and adjust watering based on weather conditions.';
+  String get defaultNudge => 'Monitor your crops regularly and adjust watering based on weather conditions.';
 }
